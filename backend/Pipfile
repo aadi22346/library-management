@@ -6,6 +6,10 @@ name = "pypi"
 [packages]
 pandas = "*"
 psycopg2 = "*"
+flask = "*"
+flask-cors = "*"
+firebase-admin = "*"
+chromadb = "*"
 
 [dev-packages]
 
