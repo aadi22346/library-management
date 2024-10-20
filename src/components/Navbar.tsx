@@ -18,9 +18,9 @@ const Navbar: React.FC = () => {
             <>
               <Link to="/user-dashboard" className="hover:text-blue-200">Dashboard</Link>
               <Link to="/cart" className="hover:text-blue-200">Cart</Link>
-              <button className="hover:text-blue-200">
+              <Link to="/logout" className="hover:text-blue-200">
                 <LogOut className="inline-block mr-1" /> Logout
-              </button>
+              </Link>
             </>
           ) : (
             <Link to="/login" className="hover:text-blue-200">
