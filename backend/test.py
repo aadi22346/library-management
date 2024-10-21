@@ -115,6 +115,6 @@ class BookRecommendationSystem:
                 print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    DB_PATH = "C:\\Users\\Areeb\\Desktop\\VS CODE Workspace\\library-management\\backend\\db_storage"
+    DB_PATH = "D:\\CITL project\\library-management\\backend\\db_storage"
     recommender = BookRecommendationSystem(DB_PATH)
     recommender.run()
