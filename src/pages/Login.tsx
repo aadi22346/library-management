@@ -28,8 +28,7 @@ const Login: React.FC = () => {
         body: JSON.stringify({ user: result.user })
       });
   
-      console.log('Response status:', response.status);  // Add this log
-      // ... rest of the code
+      console.log('Response status:', response.status); 
 
       if (response.ok) {
         navigate('/user-dashboard');
