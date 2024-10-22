@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { auth } from '../firebase'; // Ensure this path is correct
+import { auth } from '../firebase';
 
 const Logout: React.FC = () => {
     const navigate = useNavigate();
@@ -9,17 +9,13 @@ const Logout: React.FC = () => {
     useEffect(() => {
         const logout = async () => {
             try {
-                // Sign out from Firebase
                 await signOut(auth);
-
-                // Clear user data from local storage or any other storage
-                localStorage.removeItem('userToken');
-                localStorage.removeItem('userData');
-
-                // Redirect to login page
+                localStorage.clear(); // Clear all local storage
                 navigate('/login');
             } catch (error) {
                 console.error('Error during logout:', error);
+                // Even if there's an error, try to navigate to login
+                navigate('/login');
             }
         };
 
@@ -27,8 +23,8 @@ const Logout: React.FC = () => {
     }, [navigate]);
 
     return (
-        <div>
-            Logging out...
+        <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-pulse text-lg">Logging out...</div>
         </div>
     );
 };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import AuthHandler from './components/AuthHandler'; // Add this import
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -11,12 +12,13 @@ import BookDetails from './pages/BookDetails';
 import Cart from './pages/Cart';
 import Recommendations from './pages/Recommendations';
 import TransactionHistory from './pages/TransactionHistory';
-import Logout from './pages/Logout'; // Import the Logout component
+import Logout from './pages/Logout';
 
 const App: React.FC = () => {
   return (
     <AuthProvider>
       <Router>
+        <AuthHandler /> {/* Add AuthHandler here, before Navbar */}
         <Navbar />
         <Routes>
           <Route path="/" element={<Home />} />
@@ -28,7 +30,7 @@ const App: React.FC = () => {
           <Route path="/cart" element={<Cart />} />
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/transaction-history" element={<TransactionHistory />} />
-          <Route path="/logout" element={<Logout />} /> {/* Add the Logout route */}
+          <Route path="/logout" element={<Logout />} />
         </Routes>
       </Router>
     </AuthProvider>

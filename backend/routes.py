@@ -63,6 +63,10 @@ def verify_token(f):
             return jsonify({"error": f"Invalid token: {str(e)}"}), 401
     return decorated_function
 
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"}), 200
+
 @app.route("/api/login", methods=["POST", "OPTIONS"])
 @verify_token
 def google_auth():
