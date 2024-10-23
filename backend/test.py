@@ -90,11 +90,16 @@ if __name__ == "__main__":
     search_query = input("Enter the name of the book to search: ")
     book_title, metadata = book_system.search_books(search_query)
     
-    if book_title and metadata:
-        book_system.display_book_details(book_title, metadata)
+    # Display the details of the searched book
+    book_system.display_book_details(book_title, metadata)
+
+    # Check if the book was found
+    if metadata:
+        print("Book details displayed above.")
     else:
         print("Book not found.")
-    
+
+    # Generate and display similar books
     similar_books, similar_books_metadata = book_system.gen_similar_books(search_query)
     if similar_books:
         print("Similar books:")
@@ -102,5 +107,6 @@ if __name__ == "__main__":
             book_system.display_book_details(title, meta)
     else:
         print("No similar books found.")
-    
+
+    # Recommend books from history
     book_system.recommend_from_history()
