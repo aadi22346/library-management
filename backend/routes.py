@@ -6,6 +6,7 @@ from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
 from functools import wraps
 import ast
+from recommendation_system import BookRecommendationSystem
 
 app = Flask(__name__)
 
@@ -154,46 +155,42 @@ def get_book_details_by_title(title):
         return jsonify({"error": "Failed to fetch book details"}), 500
 
 
+# Add this to your existing routes.py
+
+recommendation_system = BookRecommendationSystem(collection)
+
+@app.route("/api/recommendations", methods=["GET"])
+def get_recommendations():
+    try:
+        # For testing, use a fixed user ID
+        user_id = "test_user"
+        recommendations = recommendation_system.generate_recommendations(user_id)
+        
+        return jsonify({
+            "recommendations": recommendations
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting recommendations: {e}")
+        return jsonify({"error": "Failed to fetch recommendations"}), 500
+
 @app.route("/api/search", methods=["GET"])
 def search_books():
     try:
         query = request.args.get("q", "").strip()
         n_results = int(request.args.get("limit", 10))
+        # For testing, use a fixed user ID
+        user_id = "test_user"
 
-        # Return empty results for empty queries
         if not query:
             return jsonify({"results": []}), 200
 
-        results = collection.query(
-            query_texts=[query], n_results=n_results, include=["documents", "metadatas"]
-        )
-
-        # Format results
-        books = []
-        for i, (title, metadata) in enumerate(
-            zip(results["documents"][0], results["metadatas"][0])
-        ):
-            book_id = metadata.get("id", str(i + 1))
-            print(f"Book ID: {book_id}, Title: {title}")  # Debugging statement
-            books.append(
-                {
-                    "id": book_id,  # Ensure the actual ID is included
-                    "title": title,
-                    "author": metadata.get("author", ""),
-                    "num_pages": metadata.get("num_pages", ""),
-                    "cover_image_uri": metadata.get("cover_image_uri", ""),
-                    "book_details": metadata.get("book_details", ""),
-                    "genre": metadata["genres"],
-                    "available": metadata.get("available", True),
-                }
-            )
-
+        books = recommendation_system.search_books(user_id, query, n_results)
         return jsonify({"results": books}), 200
 
     except Exception as e:
         print(f"Search error: {e}")
         return jsonify({"error": "Search failed"}), 500
-
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
