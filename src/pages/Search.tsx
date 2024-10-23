@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import debounce from 'lodash.debounce';
-import { Link } from 'react-router-dom';
 import { Search as SearchIcon } from 'lucide-react';
 
 interface Book {
@@ -56,13 +55,9 @@ const Search: React.FC = () => {
   );
 
   useEffect(() => {
-    if (searchTerm.trim()) {
-      debouncedSearch(searchTerm);
-    } else {
-      setSearchResults([]);
-    }
+    debouncedSearch(searchTerm);
     return () => {
-      debouncedSearch.cancel();
+      debouncedSearch.cancel(); // Cleanup debounce on unmount
     };
   }, [searchTerm, debouncedSearch]);
 
@@ -70,25 +65,33 @@ const Search: React.FC = () => {
     setSearchTerm(e.target.value);
   };
 
-  const formatGenre = (genres: string[] | string | undefined): string => {
-    if (!genres) return 'Genre not available';
-    
-    if (Array.isArray(genres)) {
-      return genres[0] || 'Genre not available';
+  const formatGenre = (genre: string | string[]): string => {
+    if (Array.isArray(genre)) {
+      return genre.join(', ');
     }
-    
-    if (typeof genres === 'string') {
-      try {
-        // Try to parse if it's a stringified array
-        const parsed = JSON.parse(genres.replace(/'/g, '"'));
-        return Array.isArray(parsed) ? parsed[0] : genres;
-      } catch {
-        // If parsing fails, clean up the string
-        return genres.replace(/[[\]'"]/g, '').split(',')[0].trim();
-      }
-    }
-    
-    return 'Genre not available';
+    // Remove brackets and quotes, split by commas, take first genre
+    const cleanedGenre = genre.replace(/[[]'"]/g, '').split(',')[0].trim();
+    return cleanedGenre;
+  };
+
+  const handleViewDetails = async (book: Book) => {
+    console.log(`Navigating to details for book title: ${book.title}`);  // Debugging statement
+
+    // Store the search history
+    await fetch(`http://localhost:5000/api/store_search_history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: 'test_user',  // Replace with actual user ID
+        book_title: book.title,
+        genres: Array.isArray(book.genres) ? book.genres : book.genres.split(',').map((g: string) => g.trim())
+      }),
+    });
+
+    // Navigate to book details page
+    window.location.href = `/book/${encodeURIComponent(book.title)}`;
   };
 
   return (
@@ -127,34 +130,27 @@ const Search: React.FC = () => {
                 >
                   <div className="w-1/3">
                     {book.cover_image_uri && (
-                      <img 
-                        src={book.cover_image_uri} 
-                        alt={book.title} 
-                        className="rounded-lg"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = '/placeholder-book.jpg';
-                        }}
-                      />
+                      <img src={book.cover_image_uri} alt={book.title} className="rounded-lg" />
                     )}
                   </div>
                   <div className="w-2/3 pl-6">
                     <h2 className="text-lg font-semibold text-gray-900">{book.title}</h2>
-                    <p className="text-sm text-gray-600 mt-1">Author: {book.author || 'Unknown'}</p>
-                    <p className="text-sm text-gray-600 mt-1">Pages: {book.num_pages || 'N/A'}</p>
+                    <p className="text-sm text-gray-600 mt-1">Author: {book.author}</p>
+                    <p className="text-sm text-gray-600 mt-1">Pages: {book.num_pages}</p>
                     <p className="text-sm text-gray-600 mt-1">Genre: {formatGenre(book.genres)}</p>
-                    <p className="text-sm text-gray-600 mt-1">Details: {book.book_details || 'No details available'}</p>
+                    <p className="text-sm text-gray-600 mt-1">Details: {book.book_details}</p>
                     <div className="flex items-center justify-between mt-2">
                       <p className={`text-sm font-medium ${book.available ? 'text-green-600' : 'text-red-600'}`}>
                         {book.available ? 'Available' : 'Not Available'}
                       </p>
-                      <Link 
-                        to={`/book/${encodeURIComponent(book.title)}`} 
+                      <button 
+                        onClick={() => handleViewDetails(book)} 
                         className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
                         aria-label={`View details for ${book.title}`}
+                        type="button" // Add type attribute to button
                       >
                         View Details →
-                      </Link>
+                      </button>
                     </div>
                   </div>
                 </div>
