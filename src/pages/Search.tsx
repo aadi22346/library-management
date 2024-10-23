@@ -1,61 +1,145 @@
-import React, { useState } from 'react';
-import { Search as SearchIcon } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import debounce from 'lodash.debounce';
 import { Link } from 'react-router-dom';
+import { Search as SearchIcon } from 'lucide-react'; // Assuming you have an icon component
 
 interface Book {
   id: string;
   title: string;
   author: string;
+  num_pages: number;
+  cover_image_uri: string;
+  book_details: string;
   genre: string;
   available: boolean;
 }
 
 const Search: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Book[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    // In a real application, this would be an API call to your backend
-    const mockResults: Book[] = [
-      { id: '1', title: 'To Kill a Mockingbird', author: 'Harper Lee', genre: 'Fiction', available: true },
-      { id: '2', title: '1984', author: 'George Orwell', genre: 'Science Fiction', available: false },
-      { id: '3', title: 'Pride and Prejudice', author: 'Jane Austen', genre: 'Romance', available: true },
-    ];
-    setSearchResults(mockResults);
+  const performSearch = useCallback(async (query: string): Promise<void> => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/search?q=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Search failed');
+      }
+
+      const data = await response.json();
+      setSearchResults(data.results);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Search failed');
+      }
+      setSearchResults([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const debouncedSearch = useMemo(
+    () => debounce((query: string) => performSearch(query), 150),
+    [performSearch]
+  );
+
+  useEffect(() => {
+    debouncedSearch(searchTerm);
+    return () => {
+      debouncedSearch.cancel(); // Cleanup debounce on unmount
+    };
+  }, [searchTerm, debouncedSearch]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    setSearchTerm(e.target.value);
+  };
+
+  const formatGenre = (genre: string): string => {
+    // Remove brackets and quotes, split by commas, take first genre
+    const cleanedGenre = genre.replace(/[[]'"]/g, '').split(',')[0].trim();
+    return cleanedGenre;
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Search Books</h1>
-      <form onSubmit={handleSearch} className="mb-8">
-        <div className="flex">
+      
+      <div className="relative mb-8">
+        <div className="flex items-center border border-gray-300 rounded-md focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500">
+          <SearchIcon className="w-5 h-5 text-gray-400 ml-3" aria-hidden="true" />
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by title, author, or genre"
-            className="flex-grow p-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={handleInputChange}
+            placeholder="Search by title, author, or genre..."
+            className="flex-grow p-3 pl-2 focus:outline-none rounded-md"
+            aria-label="Search books"
           />
-          <button type="submit" className="bg-blue-600 text-white p-2 rounded-r-md hover:bg-blue-700 transition duration-300">
-            <SearchIcon className="w-6 h-6" />
-          </button>
+          {isLoading && (
+            <div className="mr-3">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
+            </div>
+          )}
         </div>
-      </form>
-      <div className="space-y-4">
-        {searchResults.map((book) => (
-          <div key={book.id} className="bg-white p-4 rounded-md shadow">
-            <h2 className="text-xl font-semibold mb-2">{book.title}</h2>
-            <p className="text-gray-600">Author: {book.author}</p>
-            <p className="text-gray-600">Genre: {book.genre}</p>
-            <p className={`font-semibold ${book.available ? 'text-green-600' : 'text-red-600'}`}>
-              {book.available ? 'Available' : 'Not Available'}
-            </p>
-            <Link to={`/book/${book.id}`} className="mt-2 inline-block text-blue-600 hover:underline">
-              View Details
-            </Link>
+        
+        {(searchResults.length > 0 || error || (searchTerm.trim() !== '' && !isLoading)) && (
+          <div className="absolute w-full mt-2 bg-white rounded-md shadow-lg border border-gray-200 max-h-[70vh] overflow-y-auto z-10">
+            {error ? (
+              <div className="p-4 text-red-600" role="alert">
+                {error}
+              </div>
+            ) : searchResults.length > 0 ? (
+              searchResults.map((book) => (
+                <div 
+                  key={book.id} 
+                  className="p-4 hover:bg-gray-50 border-b border-gray-100 last:border-b-0 flex"
+                >
+                  <div className="w-1/3">
+                    {book.cover_image_uri && (
+                      <img src={book.cover_image_uri} alt={book.title} className="rounded-lg" />
+                    )}
+                  </div>
+                  <div className="w-2/3 pl-6">
+                    <h2 className="text-lg font-semibold text-gray-900">{book.title}</h2>
+                    <p className="text-sm text-gray-600 mt-1">Author: {book.author}</p>
+                    <p className="text-sm text-gray-600 mt-1">Pages: {book.num_pages}</p>
+                    <p className="text-sm text-gray-600 mt-1">Genre: {formatGenre(book.genre)}</p>
+                    <p className="text-sm text-gray-600 mt-1">Details: {book.book_details}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className={`text-sm font-medium ${book.available ? 'text-green-600' : 'text-red-600'}`}>
+                        {book.available ? 'Available' : 'Not Available'}
+                      </p>
+                      <Link 
+                        to={`/book/${encodeURIComponent(book.title)}`} 
+                        className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                        aria-label={`View details for ${book.title}`}
+                        onClick={() => console.log(`Navigating to details for book title: ${book.title}`)} // Debugging statement
+                      >
+                        View Details →
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-gray-500 text-center">
+                No books found matching your search.
+              </div>
+            )}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

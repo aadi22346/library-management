@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
-import AuthHandler from './components/AuthHandler'; // Add this import
+import AuthHandler from './components/AuthHandler';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -26,7 +26,7 @@ const App: React.FC = () => {
           <Route path="/user-dashboard" element={<UserDashboard />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/search" element={<Search />} />
-          <Route path="/book-details" element={<BookDetails />} />
+          <Route path="/book/:title" element={<BookDetails />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/recommendations" element={<Recommendations />} />
           <Route path="/transaction-history" element={<TransactionHistory />} />

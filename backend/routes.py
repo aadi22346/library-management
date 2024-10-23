@@ -1,78 +1,78 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from chromadb import PersistentClient
-from chromadb.errors import InvalidCollectionException
+import chromadb
 import firebase_admin
 from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
 from functools import wraps
+import ast
 
 app = Flask(__name__)
 
 # Configure CORS properly
-CORS(app, resources={
-    r"/api/*": {
-        "origins": ["http://localhost:5173"],  # Replace with your frontend URL
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
-})
+CORS(
+    app,
+    resources={
+        r"/api/*": {
+            "origins": ["http://localhost:5173"],  # Replace with your frontend URL
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True,
+        }
+    },
+)
 
 # Initialize Firebase Admin SDK
-cred = credentials.Certificate('D:\\CITL project\\library-management\\backend\\serviceAccountKey.json')
+cred = credentials.Certificate(
+    "D:\\CITL project\\library-management\\backend\\serviceAccountKey.json"
+)
 firebase_admin.initialize_app(cred)
 
-# Initialize client and get collection
-client = PersistentClient(
+# Initialize ChromaDB Client
+client = chromadb.PersistentClient(
     path="D:\\CITL project\\library-management\\backend\\db_storage"
 )
 
 try:
-    collection = client.get_collection("users")
-except InvalidCollectionException:
+    collection = client.get_collection("books")
+except chromadb.errors.InvalidCollectionException:
     collection = client.create_collection(
-        name="users",
-        metadata={"description": "User database"}
+        name="books", metadata={"description": "Books collection"}
     )
 
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:5173')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
 
 def verify_token(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if request.method == 'OPTIONS':
+        if request.method == "OPTIONS":
             return jsonify({"status": "OK"}), 200
-            
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
+
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
             return jsonify({"error": "Invalid authorization header"}), 401
-        
-        token = auth_header.split('Bearer ')[1]
+
+        token = auth_header.split("Bearer ")[1]
         try:
             decoded_token = firebase_auth.verify_id_token(token)
             request.user = decoded_token
             return f(*args, **kwargs)
         except Exception as e:
             return jsonify({"error": f"Invalid token: {str(e)}"}), 401
+
     return decorated_function
+
 
 @app.route("/api/health", methods=["GET"])
 def health_check():
     return jsonify({"status": "ok"}), 200
+
 
 @app.route("/api/login", methods=["POST", "OPTIONS"])
 @verify_token
 def google_auth():
     if request.method == "OPTIONS":
         return jsonify({"status": "OK"}), 200
-        
+
     try:
         # Get user data from the request
         user_data = request.json.get("user")
@@ -85,39 +85,115 @@ def google_auth():
         photo_url = user_data.get("photoURL")
 
         # Verify if the token UID matches the provided UID
-        if uid != request.user['uid']:
+        if uid != request.user["uid"]:
             return jsonify({"error": "User ID mismatch"}), 401
 
         # Store user in ChromaDB if not exists
         try:
-            existing_user = collection.get(
-                where={"uid": uid}
-            )
+            existing_user = collection.get(where={"uid": uid})
             if not existing_user["ids"]:
                 collection.add(
                     documents=[str(user_data)],
-                    metadatas=[{
-                        "uid": uid,
-                        "email": email,
-                        "name": name,
-                        "photo_url": photo_url
-                    }],
-                    ids=[uid]
+                    metadatas=[
+                        {
+                            "uid": uid,
+                            "email": email,
+                            "name": name,
+                            "photo_url": photo_url,
+                        }
+                    ],
+                    ids=[uid],
                 )
         except Exception as e:
             print(f"ChromaDB operation failed: {e}")
             pass
 
-        return jsonify({
-            "uid": uid,
-            "email": email,
-            "name": name,
-            "photo_url": photo_url
-        }), 200
+        return (
+            jsonify({"uid": uid, "email": email, "name": name, "photo_url": photo_url}),
+            200,
+        )
 
     except Exception as e:
         print(f"Exception occurred during login: {e}")
         return jsonify({"error": "Login failed"}), 401
+
+
+# Add this new endpoint to routes.py
+@app.route("/api/book_details/<title>", methods=["GET"])
+def get_book_details_by_title(title):
+    try:
+        print(f"Fetching details for book title: {title}")  # Debugging statement
+
+        # Query the collection using the title
+        results = collection.query(
+            query_texts=[title], n_results=1, include=["documents", "metadatas"]
+        )
+
+        if not results["documents"][0]:
+            return jsonify({"error": "Book not found"}), 404
+
+        # Get the first result since we're looking for an exact match
+        metadata = results["metadatas"][0][0]
+
+        # Format the response
+        book_details = {
+            "title": results["documents"][0][0],
+            "author": metadata.get("author", ""),
+            "num_pages": metadata.get("num_pages", ""),
+            "cover_image_uri": metadata.get("cover_image_uri", ""),
+            "book_details": metadata.get("book_details", ""),
+            "genre": metadata.get("genres", ""),
+            "available": metadata.get("available", True),
+        }
+
+        print(f"Book details fetched: {book_details}")  # Debugging statement
+        return jsonify(book_details), 200
+
+    except Exception as e:
+        print(f"Error fetching book details: {e}")
+        return jsonify({"error": "Failed to fetch book details"}), 500
+
+
+@app.route("/api/search", methods=["GET"])
+def search_books():
+    try:
+        query = request.args.get("q", "").strip()
+        n_results = int(request.args.get("limit", 10))
+
+        # Return empty results for empty queries
+        if not query:
+            return jsonify({"results": []}), 200
+
+        results = collection.query(
+            query_texts=[query], n_results=n_results, include=["documents", "metadatas"]
+        )
+
+        # Format results
+        books = []
+        for i, (title, metadata) in enumerate(
+            zip(results["documents"][0], results["metadatas"][0])
+        ):
+            book_id = metadata.get("id", str(i + 1))
+            print(f"Book ID: {book_id}, Title: {title}")  # Debugging statement
+            books.append(
+                {
+                    "id": book_id,  # Ensure the actual ID is included
+                    "title": title,
+                    "author": metadata.get("author", ""),
+                    "num_pages": metadata.get("num_pages", ""),
+                    "cover_image_uri": metadata.get("cover_image_uri", ""),
+                    "book_details": metadata.get("book_details", ""),
+                    "genre": metadata["genres"],
+                    "available": metadata.get("available", True),
+                }
+            )
+
+        return jsonify({"results": books}), 200
+
+    except Exception as e:
+        print(f"Search error: {e}")
+        return jsonify({"error": "Search failed"}), 500
+
 
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
