@@ -1,32 +1,60 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+// src/contexts/AuthContext.tsx
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { User as FirebaseUser, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../firebase';
-import { User } from 'firebase/auth';
 
-interface AuthContextType {
-  user: User | null;
-  loading: boolean;
+interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+interface AuthContextType {
+  currentUser: User | null;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
 
-export const useAuth = () => useContext(AuthContext);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      setUser(user);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (user: FirebaseUser | null) => {
+      if (user) {
+        setCurrentUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        });
+      } else {
+        setCurrentUser(null);
+      }
     });
 
     return unsubscribe;
   }, []);
 
+  const login = async (email: string, password: string) => {
+    await signInWithEmailAndPassword(auth, email, password);
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ currentUser, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
+};
+
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

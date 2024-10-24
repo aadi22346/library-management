@@ -1,26 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ShoppingCart, Trash2 } from 'lucide-react';
-
-interface CartItem {
-  id: string;
-  title: string;
-  author: string;
-}
+import { useCart } from '../contexts/CartContext'; // Ensure this path is correct
 
 const Cart: React.FC = () => {
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    { id: '1', title: 'To Kill a Mockingbird', author: 'Harper Lee' },
-    { id: '2', title: '1984', author: 'George Orwell' },
-  ]);
-
-  const removeFromCart = (id: string) => {
-    setCartItems(cartItems.filter(item => item.id !== id));
-  };
+  const { cartItems, removeFromCart } = useCart();
 
   const handleBorrow = () => {
     // In a real application, this would initiate the borrowing process
     console.log('Borrowing books:', cartItems);
-    setCartItems([]);
+    // Clear the cart after borrowing
+    cartItems.forEach(item => removeFromCart(item.id));
   };
 
   return (
@@ -40,6 +29,7 @@ const Cart: React.FC = () => {
                 <button
                   onClick={() => removeFromCart(item.id)}
                   className="text-red-600 hover:text-red-800 transition duration-300"
+                  title={`Remove ${item.title} from cart`}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>

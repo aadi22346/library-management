@@ -10,9 +10,9 @@ import ast
 from recommendation_system import BookRecommendationSystem
 from difflib import get_close_matches
 from urllib.parse import unquote
+import logging
 
 app = Flask(__name__)
-
 # Configure CORS properly
 CORS(
     app,
@@ -44,9 +44,8 @@ except chromadb.errors.InvalidCollectionException:
         name="books", metadata={"description": "Books collection"}
     )
 
-# Initialize the recommendation system
+# Initialize recommendation system
 recommendation_system = BookRecommendationSystem(collection)
-
 
 def verify_token(f):
     @wraps(f)
@@ -74,55 +73,27 @@ def health_check():
     return jsonify({"status": "ok"}), 200
 
 
-@app.route("/api/login", methods=["POST", "OPTIONS"])
-@verify_token
-def google_auth():
-    if request.method == "OPTIONS":
-        return jsonify({"status": "OK"}), 200
-
+@app.route("/api/login", methods=["POST"])
+def login():
     try:
-        # Get user data from the request
-        user_data = request.json.get("user")
-        if not user_data:
-            return jsonify({"error": "User data is missing"}), 400
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return jsonify({"error": "Authorization header is required"}), 401
 
-        uid = user_data.get("uid")
-        email = user_data.get("email")
-        name = user_data.get("displayName")
-        photo_url = user_data.get("photoURL")
+        id_token = auth_header.split(" ")[1]
+        decoded_token = firebase_auth.verify_id_token(id_token)
+        user_id = decoded_token["uid"]
 
-        # Verify if the token UID matches the provided UID
-        if uid != request.user["uid"]:
-            return jsonify({"error": "User ID mismatch"}), 401
+        # Debugging: Print the decoded token and user ID
+        print(f"Decoded token: {decoded_token}")
+        print(f"User ID: {user_id}")
 
-        # Store user in ChromaDB if not exists
-        try:
-            existing_user = collection.get(where={"uid": uid})
-            if not existing_user["ids"]:
-                collection.add(
-                    documents=[str(user_data)],
-                    metadatas=[
-                        {
-                            "uid": uid,
-                            "email": email,
-                            "name": name,
-                            "photo_url": photo_url,
-                        }
-                    ],
-                    ids=[uid],
-                )
-        except Exception as e:
-            print(f"ChromaDB operation failed: {e}")
-            pass
+        # You can add additional logic here, such as creating a user in your database
 
-        return (
-            jsonify({"uid": uid, "email": email, "name": name, "photo_url": photo_url}),
-            200,
-        )
-
+        return jsonify({"message": "Login successful", "user_id": user_id}), 200
     except Exception as e:
-        print(f"Exception occurred during login: {e}")
-        return jsonify({"error": "Login failed"}), 401
+        print(f"Error during login: {e}")
+        return jsonify({"error": "Failed to log in"}), 500
 
 
 try:
@@ -141,7 +112,7 @@ def get_book_details(book_title):
         # Fetch results from the database
         results = collection.query(
             query_texts=[decoded_title],
-            n_results=10,  # Fetch more results to find the exact match or close matches
+            n_results= 200,  # Fetch more results to find the exact match or close matches
             include=['documents', 'metadatas']  # Correct include items
         )
 
@@ -185,16 +156,6 @@ def get_book_details(book_title):
         return jsonify({"error": "Failed to fetch book details"}), 500
 
 
-@app.route("/api/recommendations/<user_id>", methods=["GET"])
-def get_recommendations(user_id):
-    try:
-        recommendations = recommendation_system.recommend_books_based_on_genre(user_id)
-        return jsonify(recommendations), 200
-    except Exception as e:
-        print(f"Error fetching recommendations: {e}")
-        return jsonify({"error": "Failed to fetch recommendations"}), 500
-
-
 @app.route("/api/store_search_history", methods=["POST"])
 def store_search_history():
     try:
@@ -203,15 +164,36 @@ def store_search_history():
         book_title = data.get("book_title")
         genres = data.get("genres")
 
-        if not user_id or not book_title or not genres:
+        logging.info(f"Storing view history - User: {user_id}, Book: {book_title}, Genres: {genres}")
+
+        if not all([user_id, book_title, genres]):
+            logging.warning("Missing required fields in view history storage request")
             return jsonify({"error": "Missing required fields"}), 400
 
-        recommendation_system.add_to_history(user_id, book_title, genres)
-        return jsonify({"message": "Search history stored successfully"}), 200
+        # Store in view history instead of search history
+        recommendation_system.add_to_view_history(user_id, book_title, genres)
+        return jsonify({"message": "View history stored successfully"}), 200
 
     except Exception as e:
-        print(f"Error storing search history: {e}")
-        return jsonify({"error": "Failed to store search history"}), 500
+        logging.error(f"Error storing view history: {e}")
+        return jsonify({"error": "Failed to store view history"}), 500
+
+@app.route("/api/recommendations/<user_id>", methods=["GET"])
+def get_recommendations(user_id):
+    try:
+        logging.info(f"Fetching recommendations for user: {user_id}")
+        # Use the new history-based recommendation method
+        recommendations = recommendation_system.recommend_books_based_on_history(user_id)
+        
+        if not recommendations:
+            logging.warning(f"No recommendations generated for user: {user_id}")
+            return jsonify([]), 200
+            
+        logging.info(f"Successfully generated {len(recommendations)} recommendations")
+        return jsonify(recommendations), 200
+    except Exception as e:
+        logging.error(f"Error fetching recommendations: {e}")
+        return jsonify({"error": "Failed to fetch recommendations"}), 500
 
 
 @app.route("/api/search", methods=["GET"])

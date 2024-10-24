@@ -4,8 +4,9 @@ import { auth, googleProvider } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { LogIn } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_API_URL ||  "http://localhost:5000";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 console.log('API_URL:', API_URL);
+
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const [error, setError] = useState<string>("");
@@ -28,17 +29,17 @@ const Login: React.FC = () => {
         body: JSON.stringify({ user: result.user })
       });
   
-      console.log('Response status:', response.status); 
-
-      if (response.ok) {
-        navigate('/user-dashboard');
-      } else {
-        console.error('Failed to login:', response.statusText);
-        setError('Failed to login. Please try again.');
+      console.log('Response status:', response.status);
+      if (!response.ok) {
+        throw new Error('Failed to log in');
       }
-    } catch (error) {
-      console.error("Error during Google sign-in:", error);
-      setError("Failed to sign in with Google. Please try again.");
+
+      // Handle successful login
+      console.log('Login successful, navigating to recommendations...');
+      navigate('/recommendations');
+    } catch (err) {
+      console.error('Login error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to log in');
     } finally {
       setIsLoading(false);
     }
@@ -46,27 +47,19 @@ const Login: React.FC = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-      <div className="p-8 bg-white shadow-md rounded-lg">
-        <h1 className="text-2xl font-bold mb-6 text-center">
-          Login to Intelligent Library
-        </h1>
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-            {error}
-          </div>
-        )}
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h1 className="text-2xl font-bold mb-6">Login</h1>
+        {error && <div className="bg-red-100 text-red-700 p-4 rounded mb-4">{error}</div>}
         <button
           onClick={handleGoogleLogin}
+          className="bg-blue-500 text-white px-4 py-2 rounded flex items-center justify-center w-full"
           disabled={isLoading}
-          className={`w-full ${
-            isLoading ? 'bg-gray-400' : 'bg-red-600 hover:bg-red-700'
-          } text-white py-2 px-4 rounded transition duration-300 flex items-center justify-center`}
         >
           {isLoading ? (
-            <span className="animate-pulse">Signing in...</span>
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
           ) : (
             <>
-              <LogIn className="mr-2" />
+              <LogIn className="w-5 h-5 mr-2" />
               Sign in with Google
             </>
           )}

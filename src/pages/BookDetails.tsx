@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
+import { useCart } from '../contexts/CartContext';
 
 interface BookDetails {
+  id: string;
   title: string;
   author: string;
   num_pages: number;
@@ -17,6 +19,7 @@ const BookDetails: React.FC = () => {
   const [bookDetails, setBookDetails] = useState<BookDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { addToCart } = useCart();
 
   useEffect(() => {
     const fetchBookDetails = async () => {
@@ -114,6 +117,11 @@ const BookDetails: React.FC = () => {
               </p>
               {bookDetails.available && (
                 <button 
+                  onClick={() => addToCart({
+                    id: bookDetails.id,
+                    title: bookDetails.title,
+                    author: bookDetails.author
+                  })}
                   className="mt-6 bg-blue-600 text-white px-6 py-3 rounded-lg flex items-center space-x-2 hover:bg-blue-700 transition duration-200"
                 >
                   <ShoppingCart className="w-5 h-5" />
