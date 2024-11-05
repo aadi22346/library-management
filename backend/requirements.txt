@@ -1,0 +1,6 @@
+pandas
+psycopg2
+flask
+flask-cors
+firebase-admin
+chromadb
